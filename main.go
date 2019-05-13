@@ -1,3 +1,4 @@
+
 package main
 
 import (
@@ -12,6 +13,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
 	"github.com/kataras/go-sessions"
+	"github.com/blog_denny/Articles"
+	"github.com/blog_denny/user"
 )
 
 type userModel struct {
@@ -25,16 +28,17 @@ type userModel struct {
 func DbConn() (db *sql.DB) {
 	dbDriver := "mysql"
 	dbUser := "root"
-	dbPass := ""
+	dbPass := "root"
 	dbName := "myblog"
 	db, err := sql.Open(dbDriver, dbUser+":"+dbPass+"@/"+dbName)
 	if err != nil {
+		fmt.Println("error db")
 		panic(err.Error())
 	}
 	return db
 }
 
-func QueryUser(uname string) userModel {
+func queryUser(uname string) userModel {
 	db := DbConn()
 	usr := userModel{}
 	db.QueryRow("SELECT Id,UserName,FirstName,LastName,Password FROM user WHERE UserName =?", uname).Scan(
@@ -67,24 +71,21 @@ func register(w http.ResponseWriter, r *http.Request) {
 	lname := r.FormValue("lastname")
 	pwd := r.FormValue("password")
 
-	users := QueryUser(uname)
+	users := queryUser(uname)
 
 	if (userModel{}) == users {
-		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost)
-
-		if len(hashedPassword) != 0 && checkErr(w, r, err) {
-			regQuery, err := db.Prepare("INSERT INTO user(UserName,FirstName,LastName,Password) VALUES(?,?,?,?)")
-			if err == nil {
-				_, err := regQuery.Exec(uname, fname, lname, hashedPassword)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-				http.Redirect(w, r, "/login", http.StatusSeeOther)
-				return
-			}
-
+		user := user.User{
+			Db : db,
 		}
+
+		err := user.Register(uname, fname, lname, pwd)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		return
+
 	} else {
 		http.Redirect(w, r, "/", 302)
 	}
@@ -105,7 +106,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 	uname := r.FormValue("username")
 	pwd := r.FormValue("password")
 
-	users := QueryUser(uname)
+	users := queryUser(uname)
 
 	pwdCompare := bcrypt.CompareHashAndPassword([]byte(users.Password), []byte(pwd))
 
@@ -157,11 +158,25 @@ func logout(w http.ResponseWriter, r *http.Request) {
 }*/
 
 func main() {
+	dbConn := DbConn()
+
 	r := mux.NewRouter()
 	r.HandleFunc("/register", register)
 	r.HandleFunc("/login", login)
 	r.HandleFunc("/", home)
 
+	createArticle(dbConn)
+
 	fmt.Println("Server running on port :8081")
 	log.Fatal(http.ListenAndServe(":8081", r))
+}
+
+func createArticle(db *sql.DB){
+	article := article.Article{
+		Db : db,
+	}
+
+	if err := article.CreateArticle("test","test"); err != nil{
+		log.Fatal(err)
+	}
 }
