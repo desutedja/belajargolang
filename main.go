@@ -13,18 +13,19 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gorilla/mux"
 	"github.com/kataras/go-sessions"
-	"github.com/blog_denny/Articles"
+	"github.com/blog_denny/article"
 	"github.com/blog_denny/user"
 )
 
 type userModel struct {
-	Id        int
+	id        int
 	UserName  string
 	FirstName string
 	LastName  string
 	Password  string
 }
 
+//DbConn nantinya mungkin akan berada diluar main.go
 func DbConn() (db *sql.DB) {
 	dbDriver := "mysql"
 	dbUser := "root"
@@ -38,14 +39,7 @@ func DbConn() (db *sql.DB) {
 	return db
 }
 
-func queryUser(uname string) userModel {
-	db := DbConn()
-	usr := userModel{}
-	db.QueryRow("SELECT Id,UserName,FirstName,LastName,Password FROM user WHERE UserName =?", uname).Scan(
-		&usr.Id, &usr.UserName, &usr.FirstName, &usr.LastName, &usr.Password,
-	)
-	return usr
-}
+
 
 func checkErr(w http.ResponseWriter, r *http.Request, err error) bool {
 	if err != nil {
@@ -61,7 +55,7 @@ func checkErr(w http.ResponseWriter, r *http.Request, err error) bool {
 
 func register(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
-		http.ServeFile(w, r, "Views/register.html")
+		http.ServeFile(w, r, "view/register.html")
 		return
 	}
 
@@ -71,13 +65,14 @@ func register(w http.ResponseWriter, r *http.Request) {
 	lname := r.FormValue("lastname")
 	pwd := r.FormValue("password")
 
-	users := queryUser(uname)
+	user := user.Dbase{
+		Db : db,
+	}
 
-	if (userModel{}) == users {
-		user := user.User{
-			Db : db,
-		}
+	users := user.QueryUser(uname)
 
+	//if users == (userModel{})  {
+	if users.UserName != "" {
 		err := user.Register(uname, fname, lname, pwd)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -86,27 +81,34 @@ func register(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 
-	} else {
-		http.Redirect(w, r, "/", 302)
 	}
+		
+	http.Redirect(w, r, "/", 302)
 	defer db.Close()
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
 	session := sessions.Start(w, r)
+
+	if r.Method != "POST" {
+		http.ServeFile(w, r, "view/login.html")
+		return
+	}
+
 	if len(session.GetString("username")) != 0 {
 		http.Redirect(w, r, "/", 302)
 	}
 
-	if r.Method != "POST" {
-		http.ServeFile(w, r, "Views/login.html")
-		return
+	db := DbConn()
+
+	user := user.Dbase{
+		Db : db,
 	}
 
 	uname := r.FormValue("username")
 	pwd := r.FormValue("password")
-
-	users := queryUser(uname)
+	users := user.QueryUser(uname)
+	//users := queryUser(uname)
 
 	pwdCompare := bcrypt.CompareHashAndPassword([]byte(users.Password), []byte(pwd))
 
@@ -133,7 +135,7 @@ func home(w http.ResponseWriter, r *http.Request) {
 		"message":  "Welcome on Go !",
 	}
 
-	t, err := template.ParseFiles("Views/home.html")
+	t, err := template.ParseFiles("views/home.html")
 	if err != nil {
 		fmt.Println(err.Error())
 		return
@@ -172,11 +174,11 @@ func main() {
 }
 
 func createArticle(db *sql.DB){
-	article := article.Article{
+	article := article.DbArticle{
 		Db : db,
 	}
 
-	if err := article.CreateArticle("test","test"); err != nil{
+	if err := article.CreateArticle("test","test","test"); err != nil{
 		log.Fatal(err)
 	}
 }
