@@ -49,3 +49,25 @@ func (a *DbArticle) GetArticleByID(idarticle int) Article {
 	)
 	return article
 }
+
+//UpdateArticle untuk update article
+func (a *DbArticle) UpdateArticle(structArticle Article) error {
+	QUptArticle, err := a.Db.Prepare("UPDATE article SET Title=?, Description=? WHERE idArticle = ?")
+	if err != nil {
+		return err
+	}
+
+	_, err = QUptArticle.Exec(structArticle.Title, structArticle.Description, structArticle.idArticle)
+	return err
+}
+
+//DeleteArticle untuk delete article
+func (a *DbArticle) DeleteArticle(idarticle int) error {
+	QUptArticle, err := a.Db.Prepare("DELETE article WHERE idArticle = ?")
+	if err != nil {
+		return err
+	}
+
+	_, err = QUptArticle.Exec(idarticle)
+	return err
+}

@@ -135,7 +135,7 @@ func home(w http.ResponseWriter, r *http.Request) {
 		"message":  "Welcome on Go !",
 	}
 
-	t, err := template.ParseFiles("views/home.html")
+	t, err := template.ParseFiles("view/home.html")
 	if err != nil {
 		fmt.Println(err.Error())
 		return
@@ -152,20 +152,23 @@ func logout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", 302)
 }
 
-/*func routes() {
+var r = mux.NewRouter()
+
+func routes() {
 	//routesnya
-	r.HandleFunc("/register", register).Methods("POST")
-	//r.HandleFunc("/login", login).Methods("POST")
-	fmt.Println("Routes Running")
-}*/
-
-func main() {
-	dbConn := DbConn()
-
-	r := mux.NewRouter()
+	//r := mux.NewRouter()
 	r.HandleFunc("/register", register)
 	r.HandleFunc("/login", login)
 	r.HandleFunc("/", home)
+}
+
+func main() {
+	dbConn := DbConn()
+	routes()
+	// r := mux.NewRouter()
+	// r.HandleFunc("/register", register)
+	// r.HandleFunc("/login", login)
+	// r.HandleFunc("/", home)
 
 	createArticle(dbConn)
 
