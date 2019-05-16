@@ -3,6 +3,7 @@ package user
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -16,7 +17,7 @@ type Dbase struct {
 }
 
 type UserModel struct {
-	Id        int
+	id        int
 	UserName  string
 	FirstName string
 	LastName  string
@@ -27,14 +28,14 @@ func (d *Dbase) QueryUser(uname string) UserModel {
 	db := d.Db
 	usr := UserModel{}
 	db.QueryRow("SELECT Id,UserName,FirstName,LastName,Password FROM user WHERE UserName =?", uname).Scan(
-		&usr.Id, &usr.UserName, &usr.FirstName, &usr.LastName, &usr.Password,
+		&usr.id, &usr.UserName, &usr.FirstName, &usr.LastName, &usr.Password,
 	)
 	return usr
 }
 
 func (u *Dbase) Register(uname, fname, lname, pwd string) error {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(pwd), bcrypt.DefaultCost)
-
+	fmt.Println("masuk register")
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"io"
+	"time"
 	"text/template"
 
 	"golang.org/x/crypto/bcrypt"
@@ -23,6 +26,14 @@ type userModel struct {
 	FirstName string
 	LastName  string
 	Password  string
+}
+
+type modelarticle struct {
+	idArticle   int
+	Title       string
+	Description string
+	AddBy       string
+	AddDate     time.Time
 }
 
 //DbConn nantinya mungkin akan berada diluar main.go
@@ -71,18 +82,20 @@ func register(w http.ResponseWriter, r *http.Request) {
 
 	users := user.QueryUser(uname)
 
-	//if users == (userModel{})  {
-	if users.UserName != "" {
-		err := user.Register(uname, fname, lname, pwd)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
+	fmt.Println(userModel{}.UserName)
+	fmt.Println(users.UserName)
 
+	if users.UserName == uname {		
+		http.Redirect(w, r, "/register", http.StatusSeeOther)
+		return
 	}
-		
+
+	err := user.Register(uname, fname, lname, pwd)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	http.Redirect(w, r, "/", 302)
 	defer db.Close()
 }
@@ -97,6 +110,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 
 	if len(session.GetString("username")) != 0 {
 		http.Redirect(w, r, "/", 302)
+		return
 	}
 
 	db := DbConn()
@@ -108,7 +122,6 @@ func login(w http.ResponseWriter, r *http.Request) {
 	uname := r.FormValue("username")
 	pwd := r.FormValue("password")
 	users := user.QueryUser(uname)
-	//users := queryUser(uname)
 
 	pwdCompare := bcrypt.CompareHashAndPassword([]byte(users.Password), []byte(pwd))
 
@@ -117,7 +130,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 		session := sessions.Start(w, r)
 		session.Set("username", users.UserName)
 		session.Set("name", users.FirstName)
-		http.Redirect(w, r, "/", 302)
+		http.Redirect(w, r, "/dashboard", 302)
 	} else {
 		//fail
 		http.Redirect(w, r, "/login", 302)
@@ -128,12 +141,25 @@ func home(w http.ResponseWriter, r *http.Request) {
 	session := sessions.Start(w, r)
 	if len(session.GetString("username")) == 0 {
 		http.Redirect(w, r, "/login", 302)
+		return
 	}
 
-	data := map[string]string{
-		"username": session.GetString("username"),
-		"message":  "Welcome on Go !",
+	homeDb := article.DbArticle{
+		Db : DbConn(),
 	}
+
+	allArticle := homeDb.GetArticles()
+
+	fmt.Printf("%+v",allArticle)
+
+	// data := map[string] interface{}{
+	// 	"idArticle":"allArticle.idArticle",
+	// 	"username": session.GetString("username"),
+	// 	"addby": allArticle.AddBy,
+	// 	"title":allArticle.Title,
+	// 	"description":allArticle.Description,
+	// 	"adddate":"today",
+	// }
 
 	t, err := template.ParseFiles("view/home.html")
 	if err != nil {
@@ -141,7 +167,7 @@ func home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	t.Execute(w, data)
+	t.Execute(w, allArticle)
 	return
 }
 
@@ -152,6 +178,61 @@ func logout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/", 302)
 }
 
+func dashboard(w http.ResponseWriter, r *http.Request){
+	if r.Method != "POST" {
+		http.ServeFile(w, r, "view/article.html")
+		return
+	}
+
+	session := sessions.Start(w, r)
+	if len(session.GetString("username")) == 0 {
+		http.Redirect(w, r, "/login", 302)
+		return
+	}
+
+	db := DbConn()
+	title := r.FormValue("title")
+	description := r.FormValue("description")
+
+	article := article.DbArticle{
+		Db : db,
+	}
+
+	newid := article.CreateArticle(title, description, session.GetString("username"))
+	if newid < 1 {
+		http.Error(w, "Terjadi Kesalahan Pada Server", http.StatusInternalServerError)
+		return
+	}
+	// if err != nil {
+	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
+	// 	return
+	// }
+
+	file, handler, err := r.FormFile("uploadfile")
+	if err != nil {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	defer file.Close()
+
+	f, err := os.OpenFile("./test/"+handler.Filename, os.O_WRONLY|os.O_CREATE, 0666)
+	if err != nil {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	defer f.Close()
+	io.Copy(f, file)
+
+	filelok := "/test/"+handler.Filename
+	errs := article.UploadFile(newid,filelok)
+	if errs != nil {
+		return
+	}
+	
+	http.Redirect(w, r, "/", http.StatusSeeOther)
+	defer db.Close()	
+}
+
 var r = mux.NewRouter()
 
 func routes() {
@@ -160,28 +241,17 @@ func routes() {
 	r.HandleFunc("/register", register)
 	r.HandleFunc("/login", login)
 	r.HandleFunc("/", home)
-}
+	r.HandleFunc("/logout", logout)
 
-func main() {
-	dbConn := DbConn()
-	routes()
-	// r := mux.NewRouter()
-	// r.HandleFunc("/register", register)
-	// r.HandleFunc("/login", login)
-	// r.HandleFunc("/", home)
-
-	createArticle(dbConn)
+	r.HandleFunc("/dashboard", dashboard)
 
 	fmt.Println("Server running on port :8081")
 	log.Fatal(http.ListenAndServe(":8081", r))
 }
 
-func createArticle(db *sql.DB){
-	article := article.DbArticle{
-		Db : db,
-	}
+func main() {
+	//dbConn := DbConn()
+	routes()
 
-	if err := article.CreateArticle("test","test","test"); err != nil{
-		log.Fatal(err)
-	}
+	//createArticle(dbConn)
 }

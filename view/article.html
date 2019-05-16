@@ -25,19 +25,18 @@
                 </div>
               </nav>
     <div class="container">
-      {{ range . }}
-      <article>
-        <h1>Breaking News: {{ .Title }}</h1>
-        <p><strong>Author:</strong> {{ .AddBy }} <strong>Published:</strong></p>
-
-        <div>
-            <img src="http://peoplecancode-public.s3.amazonaws.com/cat.jpg">
-        </div>
-
-        <p>{{ .Description }}</p>
-
-        </article>
-        {{ end }}
+            <h3>Welcome </h3>
+            <form enctype="multipart/form-data" method="POST">
+                Title:<br>
+                <input type="text" name="title" placeholder="Enter Title Here">
+                <br>
+                Description:<br>
+                <input type="text" name="description" placeholder="Enter Description Here">
+                <br><br>
+                <input type="file" name="uploadfile" />
+                <br><br>
+                <input type="submit" value="Submit">
+              </form> 
     </div>
     
 </body>
